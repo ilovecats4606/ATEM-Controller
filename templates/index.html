@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>supa cool ATEM Controller</title>
+    <style>
+        /* looks so cool bro */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #1c1c1e;
+            font-family: "Segoe UI", Roboto, sans-serif;
+            color: #f2f2f2;
+            text-align: center;
+            padding: 40px;
+        }
+
+        h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #00bcd4;
+            text-shadow: 0 2px 10px #00bcd4aa;
+        }
+
+        h2 {
+            margin-top: 50px;
+            font-size: 24px;
+            color: #aaa;
+        }
+
+        #status {
+            font-size: 32px;
+            margin: 20px auto;
+            padding: 10px 20px;
+            border-radius: 10px;
+            width: fit-content;
+            transition: background 0.4s ease, transform 0.3s ease;
+        }
+
+        #tie, #source {
+            font-size: 20px;
+            margin: 10px;
+            color: #ccc;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 15px 30px;
+            font-size: 20px;
+            margin: 10px;
+            background: #2e2e2e;
+            color: #eee;
+            border: 2px solid #444;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #00bcd4;
+            color: #000;
+            transform: scale(1.05);
+        }
+
+        #sourceBlocks {
+            margin: 30px auto;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            max-width: 700px;
+        }
+
+        .source-block {
+            width: 65px;
+            height: 65px;
+            background: #333;
+            border-radius: 8px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #aaa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 8px rgba(0,0,0,0.5);
+        }
+
+        .source-block.live {
+            background: #4caf50;
+            color: #fff;
+            transform: scale(1.1);
+            box-shadow: 0 0 15px #4caf50;
+        }
+
+        #logs {
+            text-align: left;
+            max-width: 700px;
+            margin: 30px auto;
+            height: 220px;
+            background: #121212;
+            color: #d3d3d3;
+            font-family: monospace;
+            overflow-y: auto;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #333;
+            box-shadow: inset 0 0 10px #000;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>supa cool ATEM Controller</h1>
+    <div id="status">Connecting to server...</div>
+    <div id="tie">TIE: Unknown</div>
+    <div id="source">Source: Unknown</div>
+
+    <div id="sourceBlocks">
+        <!-- source blocks will be dynamically added here -->
+    </div>
+
+    <button class="btn" onclick="toggleAutoKey()">AutoKey</button>
+    <button class="btn" onclick="toggleTie()">TIE</button>
+    <button class="btn" onclick="toggleSmartTie()">Smart Tie</button>
+    <button class="btn" onclick="toggleAutoTie()">Auto Tie (10s)</button>
+    <button class="btn" onclick="set_dsk()">Set DSK</button>
+
+    <h2>Logs</h2>
+    <div id="logs">Loading logs...</div>
+
+    <script>
+        const TOTAL_SOURCES = 10; // 8 + mps? i think
+
+        function createSourceBlocks() {
+            const container = document.getElementById("sourceBlocks");
+            for (let i = 1; i <= TOTAL_SOURCES; i++) {
+                const div = document.createElement("div");
+                div.className = "source-block";
+                div.id = `source-${i}`;
+                div.textContent = i;
+                container.appendChild(div);
+            }
+        }
+
+        function highlightLiveSource(sourceNum) {
+            for (let i = 1; i <= TOTAL_SOURCES; i++) {
+                const block = document.getElementById(`source-${i}`);
+                if (!block) continue;
+                block.classList.toggle("live", i === sourceNum);
+            }
+        }
+
+        async function updateStatus() {
+            const res = await fetch('/status');
+            const data = await res.json();
+
+            const statusDiv = document.getElementById('status');
+            const tieDiv = document.getElementById('tie');
+            const sourceDiv = document.getElementById('source');
+
+            if (!data.connected) {
+                statusDiv.textContent = "No Connection";
+                statusDiv.style.background = "#666";
+                tieDiv.textContent = "TIE: Unknown";
+                sourceDiv.textContent = "Source: Unknown";
+                highlightLiveSource(-1);
+                return;
+            }
+
+            statusDiv.textContent = data.on_air ? "ON AIR" : "OFF AIR";
+            statusDiv.style.background = data.on_air ? "#4caf50" : "#f44336";
+            statusDiv.style.color = "white";
+
+            let tieState = "OFF";
+            if (data.auto_tie_enabled) tieState = "AUTO TIE";
+            else if (data.smart_tie_enabled) tieState = "SMART TIE";
+            else if (data.tie) tieState = "ON";
+
+            tieDiv.textContent = "TIE: " + tieState;
+
+            const currentSource = parseInt(data.current_source);
+            sourceDiv.textContent = "Source: " + currentSource;
+            highlightLiveSource(currentSource);
+        }
+
+        async function toggleAutoKey() {
+            await fetch('/toggle_auto_key', { method: "POST" });
+            updateStatus();
+        }
+
+        async function toggleTie() {
+            await fetch('/toggle_tie', { method: "POST" });
+            updateStatus();
+        }
+
+        async function toggleSmartTie() {
+            await fetch('/smart_tie_toggle', { method: "POST" });
+            updateStatus();
+        }
+
+        async function toggleAutoTie() {
+            await fetch('/toggle_auto_tie', { method: "POST" });
+            updateStatus();
+        }
+
+        async function set_dsk() {
+            await fetch('/set_dsk', { method: "POST" });
+            updateStatus();
+        }
+
+        async function updateLogs() {
+            const res = await fetch('/logs');
+            const logs = await res.json();
+            const logsDiv = document.getElementById('logs');
+
+            const isNearBottom = logsDiv.scrollHeight - logsDiv.scrollTop <= logsDiv.clientHeight + 50;
+
+            logsDiv.textContent = logs.join('\n');
+
+            // Only scroll if user was already near bottom
+            if (isNearBottom) {
+                logsDiv.scrollTop = logsDiv.scrollHeight;
+            }
+        }
+
+
+        createSourceBlocks();
+        setInterval(() => {
+            updateStatus();
+            updateLogs();
+        }, 100);
+        updateStatus();
+        updateLogs();
+    </script>
+</body>
+</html>
