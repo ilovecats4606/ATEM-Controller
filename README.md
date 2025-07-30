@@ -9,7 +9,8 @@ I've adapted the Tkinter to a Flask webserver. The Tkinter still exists but is a
 
 To use the software you must have a config file `config.json` in place. It follows this format:
 
-```{
+```
+{
   "SWITCHER_IP": "xxx.xx.xx.xx",
   "FLASK_HOST": "xxx.xx.xx.xx"
 }
